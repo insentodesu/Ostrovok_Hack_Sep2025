@@ -19,10 +19,14 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
+    cities: list[str] | None = None
+    guests: int | None = None
 
 
 class UserRead(UserBase):
     id: int
     role: str
-
+    cities: list[str] | None = None
+    guests: int | None = None
+    rating: int = 0
     model_config = ConfigDict(from_attributes=True)

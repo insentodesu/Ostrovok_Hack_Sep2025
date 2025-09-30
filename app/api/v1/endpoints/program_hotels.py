@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_admin, get_db_session
+from app.api.deps import get_current_admin, get_current_user, get_db_session
 from app.models.user import User
 from app.schemas.program_hotel import (
     ProgramHotelAvailabilityRead,
@@ -53,37 +53,22 @@ def create_program_hotel(
     response_model=list[ProgramHotelAvailabilityRead],
     summary="Доступные отели программы",
     description=(
-        "Возвращает список отелей, которые доступны для проверки пользователю по заданным "
-        "критериям. Параметр user_rating временно устанавливается в заглушку."
+        "Возвращает список отелей, которые доступны для проверки гостем"
     ),
 )
 def list_available_program_hotels_for_user(
-    user_id: int = Query(description="Идентификатор пользователя"),
-    home_city: str | None = Query(
-        default=None,
-        description="Город проживания пользователя",
-    ),
-    preferred_city: str | None = Query(
-        default=None,
-        description="Предпочтительный город для поездки",
-    ),
-    guests_count: int = Query(
-        default=1,
-        description="Количество путешественников",
-        ge=1,
-    ),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ):
     MAX_HOTELS_RETURNED = 5
+
+    user_id = user.id
     del user_id  # TODO: использовать при расчёте пользовательского рейтинга
 
     try:
         program_hotels = program_hotel_service.list_available_program_hotels_with_dates(
             db,
-            home_city=home_city,
-            preferred_city=preferred_city,
-            guests_count=guests_count,
-            user_rating=0.0,
+            user=user,
             limit=MAX_HOTELS_RETURNED,
         )
     except ProgramHotelSelectionError as exc:
@@ -95,7 +80,7 @@ def list_available_program_hotels_for_user(
             available_dates=[
                 ProgramHotelAvailableDate(**date_info)
                 for date_info in hotel_info["available_dates"]
-            ],
+            ],  
         )
         for hotel_info in program_hotels
     ]

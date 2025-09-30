@@ -37,12 +37,12 @@ def create_hotel(
     "/",
     response_model=list[HotelRead],
     summary="Список отелей",
-    description="Возвращает список отелей. Можно отфильтровать по признаку активности.",
+    description="Возвращает список отелей.",
 )
 def list_hotels(
     db: Session = Depends(get_db_session),
     is_active: bool | None = Query(
-        default=None,
+        default=True,
         description="Фильтр по активности отеля",
     ),
 ):

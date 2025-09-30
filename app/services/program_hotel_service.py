@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.hotel import Hotel
 from app.models.program_hotel import ProgramHotel
+from app.models.user import User
 
 
 class ProgramHotelCreationError(ValueError):
@@ -53,47 +54,37 @@ def create_program_hotel(
     db.refresh(program_hotel)
     return program_hotel
 
-#Хардкодим)
 HIGH_USER_RATING_THRESHOLD = 7.0
 MEDIUM_USER_RATING_THRESHOLD = 4.0
 
 MEDIUM_HOTEL_RATING = 4
 LOW_HOTEL_RATING = 3
 
-"""Возвращает доступные отели программы по заданным критериям."""
-def list_available_program_hotels(
+def _normalize_user_rating(user_rating: float) -> float:
+    return min(max(float(user_rating), 0.0), 10.0)
+
+
+def _build_available_hotels_query(
     db: Session,
     *,
-    home_city: str | None = None,
-    preferred_city: str | None = None,
-    guests_count: int = 1,
-    user_rating: float = 0.0,
-) -> Sequence[ProgramHotel]:
-    
-    if guests_count <= 0:
-        raise ProgramHotelSelectionError(
-            "Количество путешественников должно быть положительным"
-        )
-
-    normalized_rating = min(max(float(user_rating), 0.0), 10.0)
-
+    cities: list[str],
+    guests_count: int,
+    normalized_rating: float,
+    with_joinedload: bool,
+):
     query = (
         db.query(ProgramHotel)
         .join(ProgramHotel.hotel)
-        .options(joinedload(ProgramHotel.hotel))
         .filter(
-            ProgramHotel.is_published.is_(True),
             ProgramHotel.slots_available > 0,
         )
     )
 
-    if guests_count > 1:
-        query = query.filter(ProgramHotel.slots_available >= guests_count)
+    if with_joinedload:
+        query = query.options(joinedload(ProgramHotel.hotel))
 
-    #TODO: ближайшие города?
-    cities = {city.strip() for city in (home_city, preferred_city) if city and city.strip()}
     if cities:
-        query = query.filter(Hotel.city.in_(cities))
+        query = query.filter(Hotel.city.in_(cities), Hotel.guests >= guests_count)
 
     if normalized_rating >= HIGH_USER_RATING_THRESHOLD:
         rating_filter = None
@@ -108,25 +99,36 @@ def list_available_program_hotels(
     if rating_filter is not None:
         query = query.filter(rating_filter)
 
+    return query, ordering
+
+"""Возвращает доступные отели программы по заданным критериям."""
+def list_available_program_hotels(
+    db: Session,
+    *,
+    user: User
+) -> Sequence[ProgramHotel]:
+
+    normalized_rating = _normalize_user_rating(user.rating)
+    query, ordering = _build_available_hotels_query(
+        db,
+        cities=user.cities,
+        normalized_rating=normalized_rating,
+        with_joinedload=True,
+    )
+
     return query.order_by(ordering, ProgramHotel.created_at.desc()).all()
 
 def list_available_program_hotels_with_dates(
     db: Session,
     *,
-    home_city: str | None = None,
-    preferred_city: str | None = None,
-    guests_count: int = 1,
-    user_rating: float = 0.0,
+    user: User,
     limit: int | None = None,
 ) -> list[dict]:
     """Группирует доступные отели программы по самим отелям и датам."""
 
     program_hotels = list_available_program_hotels(
         db,
-        home_city=home_city,
-        preferred_city=preferred_city,
-        guests_count=guests_count,
-        user_rating=user_rating,
+        user=user,
     )
 
     grouped_hotels: OrderedDict[int, dict] = OrderedDict()
@@ -140,7 +142,6 @@ def list_available_program_hotels_with_dates(
 
         if hotel_entry is None:
             if limit is not None and len(grouped_hotels) >= limit:
-                # Достигнут лимит по количеству уникальных отелей.
                 continue
 
             hotel_entry = {
@@ -158,3 +159,26 @@ def list_available_program_hotels_with_dates(
         )
 
     return list(grouped_hotels.values())
+
+def is_hotel_available_for_user(
+    db: Session,
+    *,
+    hotel_id: int,
+    user: User,
+) -> bool:
+
+    normalized_rating = _normalize_user_rating(user.rating)
+    query, _ = _build_available_hotels_query(
+        db,
+        cities=user.cities,
+        guests_count=user.guests,
+        normalized_rating=normalized_rating,
+        with_joinedload=False,
+    )
+
+    return (
+        query.filter(ProgramHotel.hotel_id == hotel_id)
+        .order_by(ProgramHotel.created_at.desc())
+        .first()
+        is not None
+    )

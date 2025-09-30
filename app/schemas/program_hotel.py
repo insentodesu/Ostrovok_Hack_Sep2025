@@ -9,7 +9,6 @@ class ProgramHotelBase(BaseModel):
     hotel_id: int
     check_in_date: datetime
     check_out_date: datetime
-    is_published: bool = True
 
 
 class ProgramHotelCreate(ProgramHotelBase):
@@ -35,7 +34,6 @@ class ProgramHotelUpdate(BaseModel):
     check_out_date: datetime | None = None
     slots_total: int | None = None
     slots_available: int | None = None
-    is_published: bool | None = None
 
 
 class ProgramHotelRead(ProgramHotelBase):

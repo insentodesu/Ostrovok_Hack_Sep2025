@@ -6,9 +6,8 @@ class HotelBase(BaseModel):
     name: str
     city: str
     address: str
-    rooms_total: int | None = None
-    description: str | None = None
-    is_active: bool = True
+    cost: int = Field(default=1, ge=1)
+    guests: int = Field(default=1, ge=1)
     rating: int = Field(default=0, ge=0, le=5)
 
 
@@ -20,9 +19,9 @@ class HotelUpdate(BaseModel):
     name: str | None = None
     city: str | None = None
     address: str | None = None
-    rooms_total: int | None = None
+    cost: int | None = Field(default=None, ge=1)
+    guests: int | None = Field(default=None, ge=1)
     description: str | None = None
-    is_active: bool | None = None
     rating: int | None = Field(default=None, ge=0, le=5)
 
 
