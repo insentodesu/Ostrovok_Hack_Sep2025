@@ -8,6 +8,8 @@ from app.models.program_hotel import ProgramHotel
 class ProgramHotelCreationError(ValueError):
     """Ошибка при добавлении слотов для отеля в программу."""
 
+class ProgramHotelSelectionError(ValueError):
+    """Ошибка при подборе отелей для секретного гостя."""
 
 def create_program_hotel(
     db: Session,
@@ -40,7 +42,7 @@ def create_program_hotel(
         check_in_date=check_in_date,
         check_out_date=check_out_date,
         slots_total=slots_total,
-        slots_available=slots_total,
+        slots_available=slots_available,
         is_published=is_published,
     )
     db.add(program_hotel)

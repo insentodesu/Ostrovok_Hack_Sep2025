@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base_class import Base
@@ -6,6 +6,9 @@ from app.db.base_class import Base
 # Базовая модель отеля(которая якобы уже есть в островке), для вывода информации об отеле
 class Hotel(Base):
     __tablename__ = "hotels"
+    __table_args__ = (
+        CheckConstraint("rating BETWEEN 0 AND 5", name="ck_hotels_rating_range"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
@@ -14,6 +17,7 @@ class Hotel(Base):
     rooms_total = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    rating = Column(Integer, default=0, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

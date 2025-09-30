@@ -12,7 +12,10 @@ def create_hotel(
     rooms_total: int | None = None,
     description: str | None = None,
     is_active: bool = True,
+    rating: int = 0,
 ) -> Hotel:
+    if rating < 0 or rating > 5:
+        raise ValueError("Рейтинг отеля должен быть в диапазоне от 0 до 5")
     hotel = Hotel(
         name=name,
         city=city,
@@ -20,6 +23,7 @@ def create_hotel(
         rooms_total=rooms_total,
         description=description,
         is_active=is_active,
+        rating=rating,
     )
     db.add(hotel)
     db.commit()
@@ -52,6 +56,7 @@ def update_hotel(
     rooms_total: int | None = None,
     description: str | None = None,
     is_active: bool | None = None,
+    rating: int | None = None,
 ) -> Hotel:
     if name is not None:
         hotel.name = name
@@ -65,7 +70,10 @@ def update_hotel(
         hotel.description = description
     if is_active is not None:
         hotel.is_active = is_active
-
+    if rating is not None:
+        if rating < 0 or rating > 5:
+            raise ValueError("Рейтинг отеля должен быть в диапазоне от 0 до 5")
+        hotel.rating = rating
     db.add(hotel)
     db.commit()
     db.refresh(hotel)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HotelBase(BaseModel):
@@ -9,6 +9,7 @@ class HotelBase(BaseModel):
     rooms_total: int | None = None
     description: str | None = None
     is_active: bool = True
+    rating: int = Field(default=0, ge=0, le=5)
 
 
 class HotelCreate(HotelBase):
@@ -22,6 +23,7 @@ class HotelUpdate(BaseModel):
     rooms_total: int | None = None
     description: str | None = None
     is_active: bool | None = None
+    rating: int | None = Field(default=None, ge=0, le=5)
 
 
 class HotelRead(HotelBase):
