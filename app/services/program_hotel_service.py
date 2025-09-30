@@ -40,7 +40,7 @@ def create_program_hotel(
         check_in_date=check_in_date,
         check_out_date=check_out_date,
         slots_total=slots_total,
-        slots_available=slots_available,
+        slots_available=slots_total,
         is_published=is_published,
     )
     db.add(program_hotel)

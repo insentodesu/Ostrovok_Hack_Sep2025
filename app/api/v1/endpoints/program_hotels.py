@@ -33,7 +33,6 @@ def create_program_hotel(
             check_in_date=payload.check_in_date,
             check_out_date=payload.check_out_date,
             slots_total=payload.slots_total,
-            slots_available=payload.slots_available,
             is_published=payload.is_published,
         )
     except ProgramHotelCreationError as exc:

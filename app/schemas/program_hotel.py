@@ -14,7 +14,6 @@ class ProgramHotelBase(BaseModel):
 
 class ProgramHotelCreate(ProgramHotelBase):
     slots_total: int = 1
-    slots_available: int | None = None
 
     @field_validator("slots_total")
     @classmethod
@@ -23,25 +22,10 @@ class ProgramHotelCreate(ProgramHotelBase):
             raise ValueError("Общее количество слотов должно быть положительным")
         return value
 
-    @field_validator("slots_available")
-    @classmethod
-    def validate_slots_available(cls, value: int | None) -> int | None:
-        if value is not None and value < 0:
-            raise ValueError("Доступное количество слотов не может быть отрицательным")
-        return value
-
     @model_validator(mode="after")
     def validate_dates_and_slots(self) -> "ProgramHotelCreate":
         if self.check_in_date >= self.check_out_date:
             raise ValueError("Дата выезда должна быть позже даты заезда")
-
-        if self.slots_available is None:
-            self.slots_available = self.slots_total
-        elif self.slots_available > self.slots_total:
-            raise ValueError(
-                "Доступное количество слотов не может превышать общее количество слотов"
-            )
-
         return self
 
 
