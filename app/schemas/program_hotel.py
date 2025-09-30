@@ -47,3 +47,13 @@ class ProgramHotelRead(ProgramHotelBase):
     hotel: HotelRead | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class ProgramHotelAvailableDate(BaseModel):
+    check_in_date: datetime
+    check_out_date: datetime
+    slots_available: int
+
+
+class ProgramHotelAvailabilityRead(BaseModel):
+    hotel: HotelRead
+    available_dates: list[ProgramHotelAvailableDate]

@@ -19,7 +19,7 @@ router = APIRouter()
 def create_hotel(
     payload: HotelCreate,
     db: Session = Depends(get_db_session),
-    _: User = Depends(get_current_admin),
+    #_: User = Depends(get_current_admin),
 ):
     hotel = hotel_service.create_hotel(
         db,

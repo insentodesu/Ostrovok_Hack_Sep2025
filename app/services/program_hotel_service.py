@@ -1,4 +1,5 @@
 from datetime import datetime
+from collections import OrderedDict
 from collections.abc import Sequence
 
 from sqlalchemy.orm import Session, joinedload
@@ -108,3 +109,52 @@ def list_available_program_hotels(
         query = query.filter(rating_filter)
 
     return query.order_by(ordering, ProgramHotel.created_at.desc()).all()
+
+def list_available_program_hotels_with_dates(
+    db: Session,
+    *,
+    home_city: str | None = None,
+    preferred_city: str | None = None,
+    guests_count: int = 1,
+    user_rating: float = 0.0,
+    limit: int | None = None,
+) -> list[dict]:
+    """Группирует доступные отели программы по самим отелям и датам."""
+
+    program_hotels = list_available_program_hotels(
+        db,
+        home_city=home_city,
+        preferred_city=preferred_city,
+        guests_count=guests_count,
+        user_rating=user_rating,
+    )
+
+    grouped_hotels: OrderedDict[int, dict] = OrderedDict()
+
+    for program_hotel in program_hotels:
+        hotel = program_hotel.hotel
+        if hotel is None:
+            continue
+
+        hotel_entry = grouped_hotels.get(program_hotel.hotel_id)
+
+        if hotel_entry is None:
+            if limit is not None and len(grouped_hotels) >= limit:
+                # Достигнут лимит по количеству уникальных отелей.
+                continue
+
+            hotel_entry = {
+                "hotel": hotel,
+                "available_dates": [],
+            }
+            grouped_hotels[program_hotel.hotel_id] = hotel_entry
+
+        hotel_entry["available_dates"].append(
+            {
+                "check_in_date": program_hotel.check_in_date,
+                "check_out_date": program_hotel.check_out_date,
+                "slots_available": program_hotel.slots_available,
+            }
+        )
+
+    return list(grouped_hotels.values())
