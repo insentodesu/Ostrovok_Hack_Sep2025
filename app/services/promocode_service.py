@@ -4,7 +4,7 @@ import string
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.promocode import PromoCode
+from app.models.promocode import Promocode
 
 _PROMOCODE_ALPHABET = string.ascii_uppercase + string.digits
 
@@ -33,7 +33,7 @@ def generate_unique_promocode(
 
     for _ in range(max_attempts):
         candidate = generate_promocode(length=length, prefix=prefix)
-        exists = db.execute(select(PromoCode.id).where(PromoCode.code == candidate)).first()
+        exists = db.execute(select(Promocode.id).where(Promocode.code == candidate)).first()
         if not exists:
             return candidate
     raise RuntimeError("Не возможно сгенерировать уникальный промокод")
