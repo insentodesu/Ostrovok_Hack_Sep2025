@@ -9,9 +9,8 @@ def create_hotel(
     name: str,
     city: str,
     address: str,
-    rooms_total: int | None = None,
-    description: str | None = None,
-    is_active: bool = True,
+    guests: int,
+    cost: int,
     rating: int = 0,
 ) -> Hotel:
     if rating < 0 or rating > 5:
@@ -20,9 +19,8 @@ def create_hotel(
         name=name,
         city=city,
         address=address,
-        rooms_total=rooms_total,
-        description=description,
-        is_active=is_active,
+        guests=guests,
+        cost=cost,
         rating=rating,
     )
     db.add(hotel)
@@ -53,9 +51,8 @@ def update_hotel(
     name: str | None = None,
     city: str | None = None,
     address: str | None = None,
-    rooms_total: int | None = None,
-    description: str | None = None,
-    is_active: bool | None = None,
+    guests: int | None = None,
+    cost: int | None = None,
     rating: int | None = None,
 ) -> Hotel:
     if name is not None:
@@ -64,12 +61,10 @@ def update_hotel(
         hotel.city = city
     if address is not None:
         hotel.address = address
-    if rooms_total is not None:
-        hotel.rooms_total = rooms_total
-    if description is not None:
-        hotel.description = description
-    if is_active is not None:
-        hotel.is_active = is_active
+    if guests is not None:
+        hotel.guests = guests
+    if cost is not None:
+        hotel.cost = cost
     if rating is not None:
         if rating < 0 or rating > 5:
             raise ValueError("Рейтинг отеля должен быть в диапазоне от 0 до 5")

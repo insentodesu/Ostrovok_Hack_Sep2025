@@ -26,9 +26,8 @@ def create_hotel(
         name=payload.name,
         city=payload.city,
         address=payload.address,
-        rooms_total=payload.rooms_total,
-        description=payload.description,
-        is_active=payload.is_active,
+        guests=payload.guests,
+        cost=payload.cost,
     )
     return hotel
 

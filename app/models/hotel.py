@@ -29,8 +29,3 @@ class Hotel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    inspections = relationship(
-        "Inspection",
-        back_populates="hotel",
-        passive_deletes=True,
-    )
