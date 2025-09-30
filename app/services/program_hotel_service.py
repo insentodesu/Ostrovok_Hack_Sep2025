@@ -1,8 +1,6 @@
 from datetime import datetime
 from collections.abc import Sequence
 
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.hotel import Hotel
@@ -58,6 +56,9 @@ def create_program_hotel(
 HIGH_USER_RATING_THRESHOLD = 7.0
 MEDIUM_USER_RATING_THRESHOLD = 4.0
 
+MEDIUM_HOTEL_RATING = 4
+LOW_HOTEL_RATING = 3
+
 """Возвращает доступные отели программы по заданным критериям."""
 def list_available_program_hotels(
     db: Session,
@@ -97,10 +98,10 @@ def list_available_program_hotels(
         rating_filter = None
         ordering = Hotel.rating.desc()
     elif normalized_rating >= MEDIUM_USER_RATING_THRESHOLD:
-        rating_filter = Hotel.rating <= 4
+        rating_filter = Hotel.rating <= MEDIUM_HOTEL_RATING
         ordering = Hotel.rating.desc()
     else:
-        rating_filter = Hotel.rating <= 3
+        rating_filter = Hotel.rating <= LOW_HOTEL_RATING
         ordering = Hotel.rating.asc()
 
     if rating_filter is not None:
