@@ -1,7 +1,11 @@
 from datetime import datetime
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload
 
+from app.models.hotel import Hotel
 from app.models.program_hotel import ProgramHotel
 
 
@@ -49,3 +53,57 @@ def create_program_hotel(
     db.commit()
     db.refresh(program_hotel)
     return program_hotel
+
+#Хардкодим)
+HIGH_USER_RATING_THRESHOLD = 7.0
+MEDIUM_USER_RATING_THRESHOLD = 4.0
+
+"""Возвращает доступные отели программы по заданным критериям."""
+def list_available_program_hotels(
+    db: Session,
+    *,
+    home_city: str | None = None,
+    preferred_city: str | None = None,
+    guests_count: int = 1,
+    user_rating: float = 0.0,
+) -> Sequence[ProgramHotel]:
+    
+    if guests_count <= 0:
+        raise ProgramHotelSelectionError(
+            "Количество путешественников должно быть положительным"
+        )
+
+    normalized_rating = min(max(float(user_rating), 0.0), 10.0)
+
+    query = (
+        db.query(ProgramHotel)
+        .join(ProgramHotel.hotel)
+        .options(joinedload(ProgramHotel.hotel))
+        .filter(
+            ProgramHotel.is_published.is_(True),
+            ProgramHotel.slots_available > 0,
+        )
+    )
+
+    if guests_count > 1:
+        query = query.filter(ProgramHotel.slots_available >= guests_count)
+
+    #TODO: ближайшие города?
+    cities = {city.strip() for city in (home_city, preferred_city) if city and city.strip()}
+    if cities:
+        query = query.filter(Hotel.city.in_(cities))
+
+    if normalized_rating >= HIGH_USER_RATING_THRESHOLD:
+        rating_filter = None
+        ordering = Hotel.rating.desc()
+    elif normalized_rating >= MEDIUM_USER_RATING_THRESHOLD:
+        rating_filter = Hotel.rating <= 4
+        ordering = Hotel.rating.desc()
+    else:
+        rating_filter = Hotel.rating <= 3
+        ordering = Hotel.rating.asc()
+
+    if rating_filter is not None:
+        query = query.filter(rating_filter)
+
+    return query.order_by(ordering, ProgramHotel.created_at.desc()).all()
