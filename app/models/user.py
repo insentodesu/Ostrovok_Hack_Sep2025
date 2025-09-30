@@ -1,8 +1,9 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, JSON
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.db.base_class import Base
-
+from app.db.types import JSONEncodedList
+from sqlalchemy.ext.mutable import MutableList
 
 class User(Base):
     __tablename__ = "users"
@@ -13,6 +14,13 @@ class User(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     role = Column(String, default="candidate", nullable=False)
+    cities: Mapped[list[str]] = mapped_column(
+            MutableList.as_mutable(JSONEncodedList()),
+            default=list,
+            nullable=False,
+        )
+    guests = Column(Integer, default=1, nullable=True)
+    rating = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
