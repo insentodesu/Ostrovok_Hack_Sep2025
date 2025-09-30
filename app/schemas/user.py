@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -9,6 +9,8 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    cities: list[str] | None = None
+    guests: int | None = None
 
 
 class UserLogin(BaseModel):
@@ -26,7 +28,7 @@ class UserUpdate(BaseModel):
 class UserRead(UserBase):
     id: int
     role: str
-    cities: list[str] | None = None
+    cities: list[str] = Field(default_factory=list)
     guests: int | None = None
     rating: int = 0
     model_config = ConfigDict(from_attributes=True)

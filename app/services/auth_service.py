@@ -16,6 +16,8 @@ def create_user(
     first_name: str,
     last_name: str,
     role: str = "candidate",
+    cities: list[str] | None = None,
+    guests: int | None = None,
 ) -> User:
     hashed_password = get_password_hash(password)
 
@@ -25,6 +27,8 @@ def create_user(
         first_name=first_name,
         last_name=last_name,
         role=role,
+        cities=list(cities) if cities is not None else [],
+        guests=guests if guests is not None else None,
     )
     db.add(user)
     db.commit()
