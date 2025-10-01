@@ -35,6 +35,7 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db_session)):
         email_verified=user_in.email_verified,
         phone_verified=user_in.phone_verified,
         completed_bookings_last_year=user_in.completed_bookings_last_year,
+        guru_level=user_in.guru_level,
     )
     return user
 

@@ -23,6 +23,7 @@ def create_user(
     email_verified: bool | None = None,
     phone_verified: bool | None = None,
     completed_bookings_last_year: int | None = None,
+    guru_level: int | None = None,
 ) -> User:
     hashed_password = get_password_hash(password)
 
@@ -36,6 +37,7 @@ def create_user(
         phone_verified=phone_verified if phone_verified is not None else False,
         completed_bookings_last_year=completed_bookings_last_year if completed_bookings_last_year is not None else 0,
         role=role,
+        guru_level=guru_level if guru_level is not None else 0,
         cities=list(cities) if cities is not None else [],
         guests=guests if guests is not None else None,
     )

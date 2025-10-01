@@ -27,6 +27,9 @@ MAX_PHOTOS = 4
 MIN_REVIEW_LENGTH = 100
 MAX_REVIEW_LENGTH = 2000
 
+USER_BONUS_MAX = 7
+TOTAL_SCORE_MAX = NORMALIZED_SCORE_MAX + USER_BONUS_MAX
+
 ACTIVE_STATUSES = {
     ProgramApplicationStatus.draft,
     ProgramApplicationStatus.in_review,
@@ -46,6 +49,33 @@ def _calculate_raw_score(answers: dict[str, str]) -> int:
         score += mapping[answer]
     return score
 
+def _calculate_user_bonus(user: User | None) -> int:
+    if user is None:
+        return 0
+
+    bonus = 0
+
+    created_at = getattr(user, "created_at", None)
+    if isinstance(created_at, datetime.datetime):
+        created_at_dt = created_at
+        if created_at_dt.tzinfo is None:
+            created_at_dt = created_at_dt.replace(tzinfo=datetime.UTC)
+        now = datetime.datetime.now(datetime.UTC)
+        years_on_platform = now.year - created_at_dt.year - (
+            (now.month, now.day) < (created_at_dt.month, created_at_dt.day)
+        )
+        if years_on_platform >= 3:
+            bonus += 3
+        elif years_on_platform >= 2:
+            bonus += 2
+        elif years_on_platform >= 1:
+            bonus += 1
+
+    guru_level = getattr(user, "guru_level", 0) or 0
+    if isinstance(guru_level, int):
+        bonus += max(0, min(guru_level, 4))
+
+    return bonus
 
 def normalize_score(raw_score: int) -> int:
     clamped = min(max(raw_score, RAW_SCORE_MIN), RAW_SCORE_MAX)
@@ -154,7 +184,8 @@ def submit_application(
     application: ProgramApplication,
 ) -> ProgramApplication:
     raw_score = _calculate_raw_score(application.answers)
-    normalized_score = normalize_score(raw_score)
+    user_bonus = _calculate_user_bonus(application.user)
+    normalized_score = raw_score + user_bonus
     target_status = determine_status_by_score(normalized_score)
     reviewer_comment: str | None
     if normalized_score <= 4:
@@ -169,7 +200,7 @@ def submit_application(
         reviewer_comment = (
             'Ваша кандидатура одобрена на участие в программе "Секретный гость"'
         )
-        
+
     application.reviewer_comment = reviewer_comment
     application.status = target_status
     application.score = normalized_score

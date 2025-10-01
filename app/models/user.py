@@ -25,6 +25,7 @@ class User(Base):
     email_verified = Column(Boolean, default=False, nullable=False)
     phone_verified = Column(Boolean, default=False, nullable=False)
     completed_bookings_last_year = Column(Integer, default=0, nullable=False)
+    guru_level = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

@@ -16,6 +16,7 @@ class UserCreate(UserBase):
     email_verified: bool | None = None
     phone_verified: bool | None = None
     completed_bookings_last_year: int | None = None
+    guru_level: int | None = None
 
 
 class UserLogin(BaseModel):
@@ -32,6 +33,7 @@ class UserUpdate(BaseModel):
     email_verified: bool | None = None
     phone_verified: bool | None = None
     completed_bookings_last_year: int | None = None
+    guru_level: int | None = None
 
 
 class UserRead(UserBase):
@@ -44,4 +46,5 @@ class UserRead(UserBase):
     email_verified: bool = False
     phone_verified: bool = False
     completed_bookings_last_year: int = 0
+    guru_level: int = 0
     model_config = ConfigDict(from_attributes=True)
