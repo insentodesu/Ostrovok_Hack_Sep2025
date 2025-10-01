@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, JSON
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, JSON, Date
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.db.base_class import Base
@@ -21,6 +21,11 @@ class User(Base):
         )
     guests = Column(Integer, default=1, nullable=True)
     rating = Column(Integer, default=0, nullable=False)
+    date_of_birth = Column(Date, nullable=True)
+    email_verified = Column(Boolean, default=False, nullable=False)
+    phone_verified = Column(Boolean, default=False, nullable=False)
+    completed_bookings_last_year = Column(Integer, default=0, nullable=False)
+    guru_level = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

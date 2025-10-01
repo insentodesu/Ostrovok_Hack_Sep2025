@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -7,7 +8,87 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.program_application import ProgramApplication, ProgramApplicationStatus
 
+from app.models.user import User
 from app.services.upload_utils import IncomingUpload
+
+RAW_SCORE_RULES: dict[str, dict[str, int]] = {
+    "q4": {"a": -1, "b": 1, "c": 0},
+    "q5": {"a": -1, "b": 1, "c": 0},
+    "q6": {"a": 0, "b": 1, "c": -1},
+    "q7": {"a": 0, "b": 1, "c": -1},
+    "q8": {"a": 1, "b": -1, "c": 0},
+}
+
+RAW_SCORE_MIN = -4
+RAW_SCORE_MAX = 5
+NORMALIZED_SCORE_MAX = 12
+MIN_PHOTOS = 2
+MAX_PHOTOS = 4
+MIN_REVIEW_LENGTH = 100
+MAX_REVIEW_LENGTH = 2000
+
+USER_BONUS_MAX = 7
+TOTAL_SCORE_MAX = NORMALIZED_SCORE_MAX + USER_BONUS_MAX
+
+ACTIVE_STATUSES = {
+    ProgramApplicationStatus.draft,
+    ProgramApplicationStatus.in_review,
+}
+
+ACTIVE_APPLICATION_TTL_DAYS = 90
+
+
+def _calculate_raw_score(answers: dict[str, str]) -> int:
+    score = 0
+    for question, mapping in RAW_SCORE_RULES.items():
+        answer = answers.get(question)
+        if answer is None:
+            raise ValueError(f"Отсутствует ответ на вопрос {question}")
+        if answer not in mapping:
+            raise ValueError(f"Недопустимый ответ '{answer}' для вопроса {question}")
+        score += mapping[answer]
+    return score
+
+def _calculate_user_bonus(user: User | None) -> int:
+    if user is None:
+        return 0
+
+    bonus = 0
+
+    created_at = getattr(user, "created_at", None)
+    if isinstance(created_at, datetime.datetime):
+        created_at_dt = created_at
+        if created_at_dt.tzinfo is None:
+            created_at_dt = created_at_dt.replace(tzinfo=datetime.UTC)
+        now = datetime.datetime.now(datetime.UTC)
+        years_on_platform = now.year - created_at_dt.year - (
+            (now.month, now.day) < (created_at_dt.month, created_at_dt.day)
+        )
+        if years_on_platform >= 3:
+            bonus += 3
+        elif years_on_platform >= 2:
+            bonus += 2
+        elif years_on_platform >= 1:
+            bonus += 1
+
+    guru_level = getattr(user, "guru_level", 0) or 0
+    if isinstance(guru_level, int):
+        bonus += max(0, min(guru_level, 4))
+
+    return bonus
+
+def normalize_score(raw_score: int) -> int:
+    clamped = min(max(raw_score, RAW_SCORE_MIN), RAW_SCORE_MAX)
+    normalized = round((clamped - RAW_SCORE_MIN) / (RAW_SCORE_MAX - RAW_SCORE_MIN) * NORMALIZED_SCORE_MAX)
+    return max(0, min(normalized, NORMALIZED_SCORE_MAX))
+
+
+def determine_status_by_score(score: int) -> ProgramApplicationStatus:
+    if score <= 4:
+        return ProgramApplicationStatus.rejected
+    if score <= 8:
+        return ProgramApplicationStatus.in_review
+    return ProgramApplicationStatus.accepted
 
 def create_application(
     db: Session,
@@ -17,11 +98,11 @@ def create_application(
     travel_party: str,
     answers: dict,
     review_text: str,
-    user_id: int | None = None,
+    user_id: int,
 ) -> ProgramApplication:
     application = ProgramApplication(
-        city_home=city_home,
-        city_desired=city_desired,
+        city_home=city_home.strip(),
+        city_desired=city_desired.strip(),
         travel_party=travel_party,
         answers=answers,
         review_text=review_text,
@@ -52,6 +133,18 @@ def get_application_by_id(db: Session, application_id: int) -> ProgramApplicatio
 def get_application_by_user(db: Session, user_id: int) -> ProgramApplication | None:
     return db.query(ProgramApplication).filter(ProgramApplication.user_id == user_id).first()
 
+def get_active_application_by_user(db: Session, user_id: int) -> ProgramApplication | None:
+    freshness_threshold = datetime.now(tz=datetime.UTC) - datetime.timedelta(days=ACTIVE_APPLICATION_TTL_DAYS)
+    return (
+        db.query(ProgramApplication)
+        .filter(
+            ProgramApplication.user_id == user_id,
+            ProgramApplication.status == ACTIVE_STATUSES,
+            ProgramApplication.created_at >= freshness_threshold,
+        )
+        .order_by(ProgramApplication.created_at.desc())
+        .first()
+    )
 
 def update_application_status(
     db: Session,
@@ -75,9 +168,11 @@ def add_application_photos(
 ) -> ProgramApplication:
     if not photo_paths:
         return application
-    photos = list(application.photos or [])
-    photos.extend(photo_paths)
-    application.photos = photos
+    existing_photos = list(application.photos or [])
+    if len(existing_photos) + len(photo_paths) > MAX_PHOTOS:
+        raise ValueError("Можно загрузить не более четырёх фотографий")
+    existing_photos.extend(photo_paths)
+    application.photos = existing_photos
     db.add(application)
     db.commit()
     db.refresh(application)
@@ -88,7 +183,27 @@ def submit_application(
     *,
     application: ProgramApplication,
 ) -> ProgramApplication:
-    application.status = ProgramApplicationStatus.in_review
+    raw_score = _calculate_raw_score(application.answers)
+    user_bonus = _calculate_user_bonus(application.user)
+    normalized_score = raw_score + user_bonus
+    target_status = determine_status_by_score(normalized_score)
+    reviewer_comment: str | None
+    if normalized_score <= 4:
+        reviewer_comment = (
+            "На данном этапе мы ищем участников с большим вниманием к деталям в отзывах. "
+            "Вы можете подать новую заявку через 3 месяца. А пока вы можете помочь другим "
+            "путешественникам, оставляя обычные отзывы после своих поездок!"
+        )
+    elif normalized_score <= 8:
+        reviewer_comment = "Спасибо за обращение, рассмотрим вашу заявку в течении 3 дней!"
+    else:
+        reviewer_comment = (
+            'Ваша кандидатура одобрена на участие в программе "Секретный гость"'
+        )
+
+    application.reviewer_comment = reviewer_comment
+    application.status = target_status
+    application.score = normalized_score
     db.add(application)
     db.commit()
     db.refresh(application)
@@ -118,3 +233,26 @@ def store_application_photos(
     stored_paths.append(str(file_path))
 
     return stored_paths
+
+def is_user_eligible(user: User, db: Session) -> tuple[bool, str | None]:
+    active_application = get_active_application_by_user(db, user.id)
+    if active_application:
+        return False, "дождаться завершения текущей заявки/участия"
+
+    if not user.email_verified or not user.phone_verified:
+        return False, "подтвердить телефон и e-mail"
+
+    if user.completed_bookings_last_year < 4:
+        return False, "иметь не менее 4 завершённых бронирований с отзывами за 12 месяцев"
+
+    if not user.date_of_birth:
+        return False, "достичь 21 года"
+
+    today = datetime.date.today()
+    age = today.year - user.date_of_birth.year - (
+        (today.month, today.day) < (user.date_of_birth.month, user.date_of_birth.day)
+    )
+    if age < 21:
+        return False, "достичь 21 года"
+
+    return True, None
