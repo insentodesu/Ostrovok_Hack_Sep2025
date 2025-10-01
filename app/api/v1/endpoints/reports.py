@@ -44,7 +44,7 @@ def _parse_section(section: str) -> PhotoSection:
 def create_report(payload: ReportCreate, db: Session = Depends(get_db_session)) -> ReportRead:
     report = report_service.create_report(
         db,
-        hotel_name=payload.hotel_name,
+        hotel_id=payload.hotel_id,
         checkout_date=payload.checkout_date,
         user_id=payload.user_id,
     )

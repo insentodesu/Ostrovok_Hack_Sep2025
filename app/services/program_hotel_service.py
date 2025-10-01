@@ -15,6 +15,10 @@ class ProgramHotelCreationError(ValueError):
 class ProgramHotelSelectionError(ValueError):
     """Ошибка при подборе отелей для секретного гостя."""
 
+class ProgramHotelUpdateError(ValueError):
+    """Ошибка при обновлении параметров отеля программы."""
+
+
 def create_program_hotel(
     db: Session,
     *,
@@ -49,6 +53,80 @@ def create_program_hotel(
         slots_available=slots_available,
         is_published=is_published,
     )
+    db.add(program_hotel)
+    db.commit()
+    db.refresh(program_hotel)
+    return program_hotel
+
+def get_program_hotel(db: Session, program_hotel_id: int) -> ProgramHotel | None:
+    return (
+        db.query(ProgramHotel)
+        .options(joinedload(ProgramHotel.hotel))
+        .filter(ProgramHotel.id == program_hotel_id)
+        .one_or_none()
+    )
+
+
+def list_program_hotels(
+    db: Session,
+    *,
+    is_published: bool | None = None,
+) -> Sequence[ProgramHotel]:
+    query = (
+        db.query(ProgramHotel)
+        .options(joinedload(ProgramHotel.hotel))
+        .order_by(ProgramHotel.created_at.desc())
+    )
+
+    if is_published is not None:
+        query = query.filter(ProgramHotel.is_published == is_published)
+
+    return query.all()
+
+
+def update_program_hotel(
+    db: Session,
+    *,
+    program_hotel: ProgramHotel,
+    hotel_id: int | None = None,
+    check_in_date: datetime | None = None,
+    check_out_date: datetime | None = None,
+    slots_total: int | None = None,
+    slots_available: int | None = None,
+    is_published: bool | None = None,
+) -> ProgramHotel:
+    new_check_in_date = check_in_date or program_hotel.check_in_date
+    new_check_out_date = check_out_date or program_hotel.check_out_date
+
+    if new_check_in_date >= new_check_out_date:
+        raise ProgramHotelUpdateError("Дата выезда должна быть позже даты заезда")
+
+    new_slots_total = slots_total if slots_total is not None else program_hotel.slots_total
+    if new_slots_total <= 0:
+        raise ProgramHotelUpdateError("Общее количество слотов должно быть положительным")
+
+    new_slots_available = (
+        slots_available if slots_available is not None else program_hotel.slots_available
+    )
+    if new_slots_available < 0:
+        raise ProgramHotelUpdateError("Доступное количество слотов не может быть отрицательным")
+
+    if new_slots_available > new_slots_total:
+        raise ProgramHotelUpdateError(
+            "Доступное количество слотов не может превышать общее количество слотов"
+        )
+
+    if hotel_id is not None:
+        program_hotel.hotel_id = hotel_id
+
+    program_hotel.check_in_date = new_check_in_date
+    program_hotel.check_out_date = new_check_out_date
+    program_hotel.slots_total = new_slots_total
+    program_hotel.slots_available = new_slots_available
+
+    if is_published is not None:
+        program_hotel.is_published = is_published
+
     db.add(program_hotel)
     db.commit()
     db.refresh(program_hotel)
