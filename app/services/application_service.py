@@ -138,11 +138,11 @@ def add_application_photos(
 ) -> ProgramApplication:
     if not photo_paths:
         return application
-    photos = list(application.photos or [])
-    photos.extend(photo_paths)
-    if len(photos) + len(photo_paths) > MAX_PHOTOS:
+    existing_photos = list(application.photos or [])
+    if len(existing_photos) + len(photo_paths) > MAX_PHOTOS:
         raise ValueError("Можно загрузить не более четырёх фотографий")
-    application.photos = photos
+    existing_photos.extend(photo_paths)
+    application.photos = existing_photos
     db.add(application)
     db.commit()
     db.refresh(application)
