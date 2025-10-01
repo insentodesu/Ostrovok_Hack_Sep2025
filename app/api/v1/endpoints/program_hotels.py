@@ -8,11 +8,13 @@ from app.schemas.program_hotel import (
     ProgramHotelAvailableDate,
     ProgramHotelCreate,
     ProgramHotelRead,
+    ProgramHotelUpdate,
 )
 from app.services import hotel_service, program_hotel_service
 from app.services.program_hotel_service import (
     ProgramHotelCreationError,
     ProgramHotelSelectionError,
+    ProgramHotelUpdateError,
 )
 
 router = APIRouter()
@@ -47,6 +49,22 @@ def create_program_hotel(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return program_hotel
+
+@router.get(
+    "/",
+    response_model=list[ProgramHotelRead],
+    summary="Список отелей программы",
+    description="Возвращает список всех отелей программы. Доступно только администраторам.",
+)
+def list_program_hotels(
+    is_published: bool | None = Query(
+        default=None,
+        description="Фильтр по публикации отеля программы",
+    ),
+    db: Session = Depends(get_db_session),
+    _: User = Depends(get_current_admin),
+):
+    return program_hotel_service.list_program_hotels(db, is_published=is_published)
 
 @router.get(
     "/available",
@@ -84,3 +102,32 @@ def list_available_program_hotels_for_user(
         )
         for hotel_info in program_hotels
     ]
+
+@router.patch(
+    "/{program_hotel_id}",
+    response_model=ProgramHotelRead,
+    summary="Обновление отеля программы",
+    description="Позволяет администратору обновить параметры отеля программы.",
+)
+def update_program_hotel(
+    program_hotel_id: int,
+    payload: ProgramHotelUpdate,
+    db: Session = Depends(get_db_session),
+    _: User = Depends(get_current_admin),
+):
+    program_hotel = program_hotel_service.get_program_hotel(db, program_hotel_id)
+    if program_hotel is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отель программы не найден")
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    try:
+        updated_program_hotel = program_hotel_service.update_program_hotel(
+            db,
+            program_hotel=program_hotel,
+            **update_data,
+        )
+    except ProgramHotelUpdateError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return updated_program_hotel

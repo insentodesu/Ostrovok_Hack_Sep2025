@@ -20,6 +20,7 @@ router = APIRouter()
     description="Создаёт нового участника программы. Email должен быть уникальным, пароль будет зашифрован.",
 )
 def register_user(user_in: UserCreate, db: Session = Depends(get_db_session)):
+    print("register print")
     existing_user = auth_service.get_user_by_email(db, email=user_in.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")

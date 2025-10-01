@@ -1,18 +1,25 @@
 from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict, EmailStr
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.program_application import ProgramApplicationStatus
 
 
+class ApplicationAnswers(BaseModel):
+    q4: Literal["a", "b", "c"]
+    q5: Literal["a", "b", "c"]
+    q6: Literal["a", "b", "c"]
+    q7: Literal["a", "b", "c"]
+    q8: Literal["a", "b", "c"]
+
 class ApplicationBase(BaseModel):
-    first_name: str
-    last_name: str
-    email: EmailStr
-    phone: str
-    city: str | None = None
-    motivation: str | None = None
-    experience: str | None = None
+    city_home: str = Field(..., description="Город проживания")
+    city_desired: str = Field(..., description="Желаемый город пребывания")
+    travel_party: Literal["a", "b", "c"] = Field(
+        ..., description="С кем путешествует кандидат"
+    )
+    answers: ApplicationAnswers
+    review_text: str = Field(..., description="Текст отзыва секретного гостя")
 
 
 class ApplicationCreate(ApplicationBase):
@@ -23,6 +30,7 @@ class ApplicationRead(ApplicationBase):
     id: int
     status: ProgramApplicationStatus
     reviewer_comment: str | None
+    photos: list[str]
     created_at: datetime
     updated_at: datetime
 

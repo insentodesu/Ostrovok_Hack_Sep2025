@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Sequence
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -15,6 +16,7 @@ from app.schemas.application import (
     ApplicationStatusUpdate,
 )
 from app.services import application_service
+from app.services.upload_utils import gather_incoming_uploads
 
 router = APIRouter()
 
@@ -23,10 +25,10 @@ router = APIRouter()
     "/",
     response_model=ApplicationRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Подача заявки",
-    description="Создаёт новую заявку на участие. Авторизованный пользователь может подать только одну заявку.",
+    summary="Создание черновика анкеты",
+    description="Создаёт новую анкету на участие. Авторизованный пользователь может подать только одну заявку.",
 )
-def submit_application(
+def create_application(
     payload: ApplicationCreate,
     db: Session = Depends(get_db_session),
     current_user: User | None = Depends(get_optional_current_user),
@@ -34,21 +36,15 @@ def submit_application(
     if current_user and application_service.get_application_by_user(db, current_user.id):
         raise HTTPException(status_code=400, detail="Для пользователя уже существует заявка")
 
-    existing_application = application_service.get_application_by_email(db, payload.email)
-    if existing_application:
-        raise HTTPException(status_code=400, detail="Заявка с таким email уже существует")
-
     user_id = current_user.id if current_user else None
 
     application = application_service.create_application(
         db,
-        first_name=payload.first_name,
-        last_name=payload.last_name,
-        email=payload.email,
-        phone=payload.phone,
-        city=payload.city,
-        motivation=payload.motivation,
-        experience=payload.experience,
+        city_home=payload.city_home,
+        city_desired=payload.city_desired,
+        travel_party=payload.travel_party,
+        answers=payload.answers.model_dump(),
+        review_text=payload.review_text,
         user_id=user_id,
     )
     return application
@@ -128,4 +124,71 @@ def update_application_status(
         status=payload.status,
         reviewer_comment=payload.reviewer_comment,
     )
+    return updated_application
+
+@router.post(
+    "/{application_id}/photos",
+    response_model=ApplicationRead,
+    summary="Загрузка фотографий",
+    description="Прикрепляет одну или несколько фотографий к анкете в статусе черновика.",
+)
+async def upload_application_photos(
+    application_id: int,
+    files: Sequence[UploadFile] = File(...),
+    db: Session = Depends(get_db_session),
+    current_user: User | None = Depends(get_optional_current_user),
+):
+    application = application_service.get_application_by_id(db, application_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    if current_user and application.user_id and application.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для изменения заявки")
+
+    if application.status != ProgramApplicationStatus.draft:
+        raise HTTPException(status_code=400, detail="Фотографии можно добавлять только к черновику")
+
+    uploads = await gather_incoming_uploads(files)
+    non_empty_uploads = [upload for upload in uploads if upload.content]
+    if not non_empty_uploads:
+        raise HTTPException(status_code=400, detail="Пустой файл нельзя загрузить")
+
+    stored_paths = application_service.store_application_photos(
+        application_id=application.id,
+        files=non_empty_uploads,
+    )
+
+    updated_application = application_service.add_application_photos(
+        db,
+        application=application,
+        photo_paths=stored_paths,
+    )
+    return updated_application
+
+
+@router.post(
+    "/{application_id}/submit",
+    response_model=ApplicationRead,
+    summary="Отправка анкеты на проверку",
+    description="Переводит анкету из статуса черновика в модерацию.",
+)
+def submit_application_for_review(
+    application_id: int,
+    db: Session = Depends(get_db_session),
+    current_user: User | None = Depends(get_optional_current_user),
+):
+    application = application_service.get_application_by_id(db, application_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    if current_user and application.user_id and application.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для изменения заявки")
+
+    if application.status != ProgramApplicationStatus.draft:
+        raise HTTPException(status_code=400, detail="Анкета уже отправлена на проверку")
+
+    if not application.photos:
+        raise HTTPException(status_code=400, detail="Для отправки анкеты добавьте хотя бы одну фотографию")
+
+    updated_application = application_service.submit_application(db, application=application)
     return updated_application

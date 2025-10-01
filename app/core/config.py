@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60)
     algorithm: str = Field(default="HS256")
     database_url: str = Field(default="sqlite:///./app.db")
+    static_root: str = Field(default="static")
+    static_url: str = Field(default="/static")
+    application_photos_prefix: str = Field(default="applications")
+    report_photos_prefix: str = Field(default="reports")
 
     class Config:
         env_file = ".env"

@@ -25,3 +25,4 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     applications = relationship("ProgramApplication", back_populates="user")
+    reports = relationship("Report", back_populates="user")

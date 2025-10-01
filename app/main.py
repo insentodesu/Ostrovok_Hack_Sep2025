@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -26,6 +29,9 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
+static_dir = Path(settings.static_root)
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount(settings.static_url, StaticFiles(directory=static_dir, check_dir=False), name="static")
 
 @app.get(
     "/health",
