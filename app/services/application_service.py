@@ -156,7 +156,21 @@ def submit_application(
     raw_score = _calculate_raw_score(application.answers)
     normalized_score = normalize_score(raw_score)
     target_status = determine_status_by_score(normalized_score)
-
+    reviewer_comment: str | None
+    if normalized_score <= 4:
+        reviewer_comment = (
+            "На данном этапе мы ищем участников с большим вниманием к деталям в отзывах. "
+            "Вы можете подать новую заявку через 3 месяца. А пока вы можете помочь другим "
+            "путешественникам, оставляя обычные отзывы после своих поездок!"
+        )
+    elif normalized_score <= 8:
+        reviewer_comment = "Спасибо за обращение, рассмотрим вашу заявку в течении 3 дней!"
+    else:
+        reviewer_comment = (
+            'Ваша кандидатура одобрена на участие в программе "Секретный гость"'
+        )
+        
+    application.reviewer_comment = reviewer_comment
     application.status = target_status
     application.score = normalized_score
     db.add(application)
