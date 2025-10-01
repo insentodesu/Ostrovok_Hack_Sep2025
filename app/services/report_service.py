@@ -80,6 +80,47 @@ def save_step(db: Session, report: Report, step: str, payload: dict[str, Any]) -
     answers = dict(report.answers or {})
     answers[step] = payload
     report.answers = answers
+
+    overall_score: float | None = None
+    if "step1" in answers and "step2" in answers:
+        try:
+            step1 = ReportStep1Payload.model_validate(answers.get("step1"))
+        except ValidationError as exc:  # pragma: no cover - pydantic formatting
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "Ошибки валидации шага 1",
+                    "errors": exc.errors(),
+                },
+            ) from exc
+
+        try:
+            step2 = ReportStep2Payload.model_validate(answers.get("step2"))
+        except ValidationError as exc:  # pragma: no cover - pydantic formatting
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "Ошибки валидации шага 2",
+                    "errors": exc.errors(),
+                },
+            ) from exc
+
+        answers["step1"] = step1.model_dump()
+        answers["step2"] = step2.model_dump()
+
+        scores = [
+            step1.room_cleanliness,
+            step1.bathroom_sanitation,
+            step1.linen_freshness,
+            step1.public_area_cleanliness,
+            step2.politeness,
+            step2.response_speed,
+            step2.food_quality,
+        ]
+        overall_score = round(sum(scores) / len(scores), 1)
+
+    report.answers = answers
+    report.overall_score = overall_score
     db.add(report)
     db.commit()
     db.refresh(report)
