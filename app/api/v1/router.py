@@ -8,4 +8,4 @@ api_router.include_router(applications.router, prefix="/applications", tags=["З
 api_router.include_router(users.router, prefix="/users", tags=["Личный кабинет"])
 api_router.include_router(hotels.router, prefix="/hotels", tags=["Отели"])
 api_router.include_router(program_hotels.router, prefix="/program-hotels", tags=["Отели программы"])
-api_router.include_router(reports.router, prefix="/reports", tags=["Отчеты"])
+#api_router.include_router(reports.router, prefix="/reports", tags=["Отчеты"])

@@ -13,7 +13,9 @@ from app.schemas.report import (
     ReportStep2Payload,
     ReportStep6Payload,
 )
+
 from app.services import report_service
+from app.services.upload_utils import gather_incoming_uploads
 
 router = APIRouter()
 
@@ -124,17 +126,7 @@ async def upload_photos(
     report_service.ensure_report_editable(report)
     section_enum = _parse_section(section)
 
-    incoming = []
-    for file in files:
-        content = await file.read()
-        file.file.close()
-        incoming.append(
-            report_service.IncomingPhoto(
-                filename=file.filename or "",
-                content=content,
-                content_type=file.content_type,
-            )
-        )
+    incoming = await gather_incoming_uploads(files)
 
     saved = report_service.add_photos(db, report=report, section=section_enum, files=incoming)
     return [ReportPhotoRead.model_validate(report_service.serialize_photo(photo)) for photo in saved]

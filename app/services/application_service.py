@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.program_application import ProgramApplication, ProgramApplicationStatus
 
+from app.services.upload_utils import IncomingUpload
 
 def create_application(
     db: Session,
@@ -66,14 +67,16 @@ def update_application_status(
     db.refresh(application)
     return application
 
-def add_application_photo(
+def add_application_photos(
     db: Session,
     *,
     application: ProgramApplication,
-    photo_path: str,
+    photo_paths: Sequence[str],
 ) -> ProgramApplication:
+    if not photo_paths:
+        return application
     photos = list(application.photos or [])
-    photos.append(photo_path)
+    photos.extend(photo_paths)
     application.photos = photos
     db.add(application)
     db.commit()
@@ -92,23 +95,26 @@ def submit_application(
     return application
 
 
-def store_application_photo(
+def store_application_photos(
     *,
     application_id: int,
-    filename: str | None,
-    content: bytes,
-) -> str:
+    files: Sequence[IncomingUpload],
+) -> list[str]:
     storage_dir = Path(settings.static_root)
     media_prefix = Path(settings.application_photos_prefix)
 
-    original_extension = Path(filename or "").suffix.lower()
+    (storage_dir / media_prefix).mkdir(parents=True, exist_ok=True)
+
+    stored_paths: list[str] = []
     allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
-    extension = original_extension if original_extension in allowed_extensions else ".jpg"
+    for upload in files:
+        original_extension = Path(upload.filename or "").suffix.lower()
+        extension = original_extension if original_extension in allowed_extensions else ".jpg"
 
     file_name = f"{application_id}_{uuid4().hex}{extension}"
     file_path = storage_dir / media_prefix / file_name
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_bytes(upload.content)
+    stored_paths.append(str(file_path))
 
-    with open(file_path, "wb") as buffer:
-        buffer.write(content)
-
-    return str(file_path)
+    return stored_paths

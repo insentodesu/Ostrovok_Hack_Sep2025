@@ -1,3 +1,4 @@
+from typing import Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from app.schemas.application import (
     ApplicationStatusUpdate,
 )
 from app.services import application_service
+from app.services.upload_utils import gather_incoming_uploads
 
 router = APIRouter()
 
@@ -125,14 +127,14 @@ def update_application_status(
     return updated_application
 
 @router.post(
-    "/{application_id}/photo",
+    "/{application_id}/photos",
     response_model=ApplicationRead,
-    summary="Загрузка фотографии",
-    description="Прикрепляет фотографию к анкете в статусе черновика.",
+    summary="Загрузка фотографий",
+    description="Прикрепляет одну или несколько фотографий к анкете в статусе черновика.",
 )
-async def upload_application_photo(
+async def upload_application_photos(
     application_id: int,
-    file: UploadFile = File(...),
+    files: Sequence[UploadFile] = File(...),
     db: Session = Depends(get_db_session),
     current_user: User | None = Depends(get_optional_current_user),
 ):
@@ -146,20 +148,20 @@ async def upload_application_photo(
     if application.status != ProgramApplicationStatus.draft:
         raise HTTPException(status_code=400, detail="Фотографии можно добавлять только к черновику")
 
-    content = await file.read()
-    if not content:
+    uploads = await gather_incoming_uploads(files)
+    non_empty_uploads = [upload for upload in uploads if upload.content]
+    if not non_empty_uploads:
         raise HTTPException(status_code=400, detail="Пустой файл нельзя загрузить")
 
-    photo_path = application_service.store_application_photo(
+    stored_paths = application_service.store_application_photos(
         application_id=application.id,
-        filename=file.filename,
-        content=content,
+        files=non_empty_uploads,
     )
 
-    updated_application = application_service.add_application_photo(
+    updated_application = application_service.add_application_photos(
         db,
         application=application,
-        photo_path=photo_path,
+        photo_paths=stored_paths,
     )
     return updated_application
 

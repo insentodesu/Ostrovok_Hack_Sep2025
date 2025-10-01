@@ -20,16 +20,8 @@ from app.schemas.report import (
     ReportStep6Payload,
 )
 
+from app.services.upload_utils import IncomingUpload
 
-@dataclass(slots=True)
-class IncomingPhoto:
-    filename: str
-    content: bytes
-    content_type: str | None
-
-    @property
-    def size(self) -> int:
-        return len(self.content)
 
 
 def _to_utc(dt: datetime) -> datetime:
@@ -132,7 +124,7 @@ def add_photos(
     *,
     report: Report,
     section: PhotoSection,
-    files: Iterable[IncomingPhoto],
+    files: Iterable[IncomingUpload],
 ) -> list[Photo]:
     storage_root = Path(settings.static_root)
     base_dir = storage_root / settings.report_photos_prefix / report.id / section.value
