@@ -44,3 +44,7 @@ class ApplicationStatusUpdate(BaseModel):
 
 class ApplicationFilter(BaseModel):
     status: ProgramApplicationStatus | None = None
+
+class EligibilityResponse(BaseModel):
+    eligible: bool
+    reason: str | None = None

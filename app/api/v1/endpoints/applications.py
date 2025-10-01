@@ -136,7 +136,7 @@ async def upload_application_photos(
     application_id: int,
     files: Sequence[UploadFile] = File(...),
     db: Session = Depends(get_db_session),
-    current_user: User | None = Depends(get_optional_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     application = application_service.get_application_by_id(db, application_id)
     if not application:
@@ -175,8 +175,8 @@ async def upload_application_photos(
 def submit_application_for_review(
     application_id: int,
     db: Session = Depends(get_db_session),
-    current_user: User | None = Depends(get_optional_current_user),
-):
+    current_user: User = Depends(get_current_active_user),
+) -> ApplicationRead:
     application = application_service.get_application_by_id(db, application_id)
     if not application:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
