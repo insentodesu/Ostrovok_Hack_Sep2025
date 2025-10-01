@@ -190,6 +190,7 @@ def list_available_program_hotels(
     query, ordering = _build_available_hotels_query(
         db,
         cities=user.cities,
+        guests_count=user.guests or 1,
         normalized_rating=normalized_rating,
         with_joinedload=True,
     )

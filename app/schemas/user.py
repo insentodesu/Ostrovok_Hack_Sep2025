@@ -1,6 +1,9 @@
+from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from datetime import date
+from app.schemas.report import ReportStatus
+
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -48,3 +51,36 @@ class UserRead(UserBase):
     completed_bookings_last_year: int = 0
     guru_level: int = 0
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserDashboardAssignedHotel(BaseModel):
+    report_id: str
+    hotel_id: int
+    hotel_name: str
+    status: ReportStatus
+    checkout_date: datetime | None = None
+    can_submit: bool
+
+
+class UserDashboardRecommendationDate(BaseModel):
+    check_in_date: datetime
+    check_out_date: datetime
+    slots_available: int
+
+
+class UserDashboardRecommendation(BaseModel):
+    hotel_id: int
+    hotel_name: str
+    city: str
+    rating: int
+    cost: int
+    guests: int
+    available_dates: list[UserDashboardRecommendationDate] = Field(default_factory=list)
+
+
+class UserDashboard(BaseModel):
+    promo_code: str
+    participation_status: str
+    can_submit_report: bool
+    assigned_hotel: UserDashboardAssignedHotel | None = None
+    recommendations: list[UserDashboardRecommendation] = Field(default_factory=list)

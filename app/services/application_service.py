@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.program_application import ProgramApplication, ProgramApplicationStatus
-
 from app.models.user import User
+
 from app.services.upload_utils import IncomingUpload
 
 RAW_SCORE_RULES: dict[str, dict[str, int]] = {
@@ -37,6 +37,8 @@ ACTIVE_STATUSES = {
 
 ACTIVE_APPLICATION_TTL_DAYS = 90
 
+_ACCEPTED_USER_ROLE = "accepted"
+
 
 def _calculate_raw_score(answers: dict[str, str]) -> int:
     score = 0
@@ -48,6 +50,7 @@ def _calculate_raw_score(answers: dict[str, str]) -> int:
             raise ValueError(f"Недопустимый ответ '{answer}' для вопроса {question}")
         score += mapping[answer]
     return score
+
 
 def _calculate_user_bonus(user: User | None) -> int:
     if user is None:
@@ -77,6 +80,7 @@ def _calculate_user_bonus(user: User | None) -> int:
 
     return bonus
 
+
 def normalize_score(raw_score: int) -> int:
     clamped = min(max(raw_score, RAW_SCORE_MIN), RAW_SCORE_MAX)
     normalized = round((clamped - RAW_SCORE_MIN) / (RAW_SCORE_MAX - RAW_SCORE_MIN) * NORMALIZED_SCORE_MAX)
@@ -89,6 +93,28 @@ def determine_status_by_score(score: int) -> ProgramApplicationStatus:
     if score <= 8:
         return ProgramApplicationStatus.in_review
     return ProgramApplicationStatus.accepted
+
+
+def calculate_application_score(application: ProgramApplication) -> int:
+    raw_score = _calculate_raw_score(application.answers)
+    user_bonus = _calculate_user_bonus(getattr(application, "user", None))
+    return raw_score + user_bonus
+
+
+def _promote_applicant(db: Session, application: ProgramApplication) -> None:
+    if not application.user_id:
+        return
+
+    user: User | None = db.get(User, application.user_id)
+    if user is None:
+        return
+
+    if user.role in ("admin", _ACCEPTED_USER_ROLE):
+        return
+
+    user.role = _ACCEPTED_USER_ROLE
+    db.add(user)
+
 
 def create_application(
     db: Session,
@@ -107,7 +133,7 @@ def create_application(
         answers=answers,
         review_text=review_text,
         photos=[],
-        user_id = user_id,
+        user_id=user_id,
     )
     db.add(application)
     db.commit()
@@ -133,8 +159,9 @@ def get_application_by_id(db: Session, application_id: int) -> ProgramApplicatio
 def get_application_by_user(db: Session, user_id: int) -> ProgramApplication | None:
     return db.query(ProgramApplication).filter(ProgramApplication.user_id == user_id).first()
 
+
 def get_active_application_by_user(db: Session, user_id: int) -> ProgramApplication | None:
-    freshness_threshold = datetime.now(tz=datetime.UTC) - datetime.timedelta(days=ACTIVE_APPLICATION_TTL_DAYS)
+    freshness_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=ACTIVE_APPLICATION_TTL_DAYS)
     return (
         db.query(ProgramApplication)
         .filter(
@@ -145,6 +172,7 @@ def get_active_application_by_user(db: Session, user_id: int) -> ProgramApplicat
         .order_by(ProgramApplication.created_at.desc())
         .first()
     )
+
 
 def update_application_status(
     db: Session,
@@ -159,6 +187,7 @@ def update_application_status(
     db.commit()
     db.refresh(application)
     return application
+
 
 def add_application_photos(
     db: Session,
@@ -178,23 +207,22 @@ def add_application_photos(
     db.refresh(application)
     return application
 
+
 def submit_application(
     db: Session,
     *,
     application: ProgramApplication,
 ) -> ProgramApplication:
-    raw_score = _calculate_raw_score(application.answers)
-    user_bonus = _calculate_user_bonus(application.user)
-    normalized_score = raw_score + user_bonus
-    target_status = determine_status_by_score(normalized_score)
-    reviewer_comment: str | None
-    if normalized_score <= 4:
+    total_score = calculate_application_score(application)
+    target_status = determine_status_by_score(total_score)
+
+    if total_score <= 4:
         reviewer_comment = (
             "На данном этапе мы ищем участников с большим вниманием к деталям в отзывах. "
             "Вы можете подать новую заявку через 3 месяца. А пока вы можете помочь другим "
             "путешественникам, оставляя обычные отзывы после своих поездок!"
         )
-    elif normalized_score <= 8:
+    elif total_score <= 8:
         reviewer_comment = "Спасибо за обращение, рассмотрим вашу заявку в течении 3 дней!"
     else:
         reviewer_comment = (
@@ -203,7 +231,11 @@ def submit_application(
 
     application.reviewer_comment = reviewer_comment
     application.status = target_status
-    application.score = normalized_score
+    application.score = total_score
+
+    if target_status == ProgramApplicationStatus.accepted:
+        _promote_applicant(db, application)
+
     db.add(application)
     db.commit()
     db.refresh(application)
@@ -233,6 +265,7 @@ def store_application_photos(
     stored_paths.append(str(file_path))
 
     return stored_paths
+
 
 def is_user_eligible(user: User, db: Session) -> tuple[bool, str | None]:
     active_application = get_active_application_by_user(db, user.id)

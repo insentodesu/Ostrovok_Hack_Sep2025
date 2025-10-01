@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_db_session
 from app.models.user import User
+from app.schemas.admin import HotelCardReportList
 from app.schemas.hotel import HotelCreate, HotelRead, HotelUpdate
-from app.services import hotel_service
+from app.services import admin_service, hotel_service
 
 router = APIRouter()
 
@@ -80,3 +81,20 @@ def update_hotel(
     update_data = payload.model_dump(exclude_unset=True)
     updated_hotel = hotel_service.update_hotel(db, hotel=hotel, **update_data)
     return updated_hotel
+
+
+@router.get(
+    "/{hotel_id}/secret-guest-reports",
+    response_model=HotelCardReportList,
+    summary="Отзывы секретных гостей",
+    description="Возвращает агрегированные данные отчетов секретных гостей для карточки отеля.",
+)
+def list_hotel_secret_guest_reports(
+    hotel_id: int,
+    limit: int | None = Query(default=None, ge=1, le=50, description="Необязательное ограничение по количеству записей"),
+    db: Session = Depends(get_db_session),
+) -> HotelCardReportList:
+    try:
+        return admin_service.get_hotel_card_reports(db, hotel_id=hotel_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

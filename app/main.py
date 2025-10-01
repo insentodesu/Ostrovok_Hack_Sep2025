@@ -10,10 +10,10 @@ from app.db.session import engine
 
 app = FastAPI(
     title=settings.project_name,
-    description="API островка жи есть",
-    version="1.0.0",
+    description="О!Хакатон 2024. Проект Ostrovok. Backend часть.",
+    version="1.0.5",
     contact={
-        "name": "Разрабы",
+        "name": "Разработчики",
         "email": "support@example.com",
     },
     license_info={
@@ -37,7 +37,7 @@ app.mount(settings.static_url, StaticFiles(directory=static_dir, check_dir=False
     "/health",
     tags=["Служебные"],
     summary="Проверка состояния",
-    description="Думаю тут описания излишни",
+    description="Проверка состояния сервиса",
 )
 def healthcheck():
     return {"status": "ok"}
