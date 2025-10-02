@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
@@ -28,6 +29,14 @@ app = FastAPI(
 Base.metadata.create_all(bind=engine)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 static_dir = Path(settings.static_root)
 static_dir.mkdir(parents=True, exist_ok=True)
